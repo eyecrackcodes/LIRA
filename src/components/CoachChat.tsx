@@ -1,39 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-
-interface Msg {
-  role: "user" | "assistant";
-  content: string;
-}
-
-/** Coach is told to write plain text, but render **bold** properly if it slips. */
-function renderContent(text: string) {
-  const parts = text.split(/\*\*(.+?)\*\*/g);
-  return parts.map((part, i) =>
-    i % 2 === 1 ? (
-      <strong key={i} className="font-semibold text-gold">
-        {part}
-      </strong>
-    ) : (
-      part
-    )
-  );
-}
-
-const MANAGER_SUGGESTIONS = [
-  "Pull up Marcus Webb's book — policies, chargebacks, and last two weeks day by day.",
-  "Which of Priya Raman's cohorts are still baking?",
-  "Why is Rosa ranked #1 when her True HP is lower than everyone else's?",
-  "What's the difference between OVR and EFF?",
-];
-
-const AGENT_SUGGESTIONS = [
-  "Break down my last two weeks day by day — where did I leak?",
-  "Which of my policies charged back this year, and is there a pattern?",
-  "What am I on track to get paid this month?",
-  "Which lead source is working best for me lately?",
-];
+import {
+  AGENT_SUGGESTIONS,
+  MANAGER_SUGGESTIONS,
+  renderCoachText,
+  useCoachChat,
+} from "./useCoachChat";
 
 export default function CoachChat({
   configured,
@@ -43,10 +16,8 @@ export default function CoachChat({
   role?: "manager" | "agent";
 }) {
   const suggestions = role === "agent" ? AGENT_SUGGESTIONS : MANAGER_SUGGESTIONS;
-  const [messages, setMessages] = useState<Msg[]>([]);
+  const { messages, busy, error, send: post } = useCoachChat();
   const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -56,34 +27,11 @@ export default function CoachChat({
 
   async function send(text: string) {
     const q = text.trim();
-    if (!q || busy) return;
-    setError(null);
-    const next: Msg[] = [...messages, { role: "user", content: q }];
-    setMessages(next);
+    if (!q) return;
     setInput("");
-    setBusy(true);
-    try {
-      const res = await fetch("/api/coach", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages: next }),
-      });
-      const data = (await res.json()) as { reply?: string; error?: string };
-      if (!res.ok || !data.reply) {
-        setError(data.error ?? "Something went wrong — try again.");
-        setMessages(messages); // roll back the optimistic user message
-        setInput(q);
-      } else {
-        setMessages([...next, { role: "assistant", content: data.reply }]);
-      }
-    } catch {
-      setError("Couldn't reach Coach — check your connection and try again.");
-      setMessages(messages);
-      setInput(q);
-    } finally {
-      setBusy(false);
-      inputRef.current?.focus();
-    }
+    const ok = await post(q);
+    if (!ok) setInput(q); // put it back so nothing typed is lost
+    inputRef.current?.focus();
   }
 
   if (!configured) {
@@ -133,7 +81,7 @@ export default function CoachChat({
                   Coach
                 </div>
               )}
-              {m.role === "assistant" ? renderContent(m.content) : m.content}
+              {m.role === "assistant" ? renderCoachText(m.content) : m.content}
             </div>
           </div>
         ))}

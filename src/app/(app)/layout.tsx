@@ -1,4 +1,6 @@
 import { BRAND } from "@/lib/brand";
+import CoachDock from "@/components/CoachDock";
+import { coachConfigured } from "@/lib/coach";
 import Nav from "@/components/Nav";
 import ThemeToggle from "@/components/ThemeToggle";
 import { FreshnessStamp, StaleBanner } from "@/components/FreshnessStamp";
@@ -98,6 +100,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </div>
+      {/* Mounted in the layout (not per page) so the App Router keeps it alive
+          across navigation — the conversation follows the viewer around. */}
+      <CoachDock
+        configured={coachConfigured()}
+        role={viewer.role === "agent" ? "agent" : "manager"}
+      />
     </>
   );
 }

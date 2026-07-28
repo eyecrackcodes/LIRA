@@ -25,6 +25,24 @@ If you sell something else with a delayed fulfillment step between "sold" and
 
 ---
 
+![Team Pulse — live week-to-date pace, cold-streak watch, and last week's box score](docs/team-pulse.png)
+
+<table>
+<tr>
+<td width="50%"><img src="docs/agent-card.png" alt="Agent card with attribute ratings and form sparkline"></td>
+<td width="50%"><img src="docs/roster.png" alt="Roster grid sorted by overall rating"></td>
+</tr>
+<tr>
+<td><img src="docs/placement.png" alt="Placement cohort heatmap with maturity shading"></td>
+<td><img src="docs/film.png" alt="Film Room — captured outlier days per rep"></td>
+</tr>
+</table>
+
+*Every screenshot above is the demo running on generated data — that's what you
+get from `npm run demo:start`, before connecting anything.*
+
+---
+
 ## What's in it
 
 | Page | The question it answers |
@@ -166,6 +184,13 @@ Set **one** of `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (Anthropic wins if both
 are present); override the model with `COACH_MODEL`. Unset, the page renders its
 "not configured" state.
 
+Coach shows up two ways: the full-page `/coach` view, and a **floating dock** —
+a small bubble you can drag anywhere on any page. It's mounted in the app layout,
+so the conversation follows you across navigation instead of resetting, and its
+position survives a reload. Both share one hook
+([`src/components/useCoachChat.tsx`](src/components/useCoachChat.tsx)) so they
+can't drift apart.
+
 The context it sends is deliberately narrow — the same numbers on the stack-rank
 board plus the viewer's own book — and the system prompt instructs it to refuse
 anything outside that block. **Keep that constraint if you change the prompt:**
@@ -215,10 +240,15 @@ npm run dev           # your real data (needs .env.local)
 npm run demo          # fake warehouse, hot reload      → :3010
 npm run demo:build    # compile with fixtures
 npm run demo:start    # serve the demo build            → :3010  (best for recording)
+npm run demo:live     # same + Ask Coach answers for real (needs an LLM key)
 npm run build         # production build
 ```
 
 Record the rep-side experience with `DEV_VIEWER_AGENT="Bianca Ortiz" npm run demo:start`.
+
+`demo:live` is the one to record with: it keeps your `ANTHROPIC_API_KEY` so Coach
+gives real answers about the fake roster, while still blocking every other
+outbound call. Everything else stays fictional.
 
 ---
 

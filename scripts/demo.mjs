@@ -1,5 +1,8 @@
 // Launches the app in DEMO mode (fake warehouse, fictional people).
-//   node scripts/demo.mjs [dev|start] [port]
+//   node scripts/demo.mjs [dev|start|build] [port] [--live]
+//
+// --live keeps your real LLM key so "Ask Coach" answers for real against the
+// fake data (DEMO_COACH=1 does the same). Everything else stays blocked.
 //
 // Why a launcher instead of `.env.demo` alone: Next always loads `.env.local`
 // too, and that file holds the REAL Supabase/vendor keys. @next/env never
@@ -10,20 +13,32 @@ import { spawn } from "node:child_process";
 
 // dev = hot reload; build = compile with fixtures (so nothing real can be
 // baked into prerendered output); start = serve that build (best for recording).
-const arg = process.argv[2];
-const mode = arg === "start" || arg === "build" ? arg : "dev";
-const port = process.argv[3] ?? "3010";
+// Flags are filtered out of the positional args so `start 3010 --live` and
+// `start --live` both parse the port correctly.
+const argv = process.argv.slice(2);
+const live = argv.includes("--live") || process.env.DEMO_COACH === "1";
+const positional = argv.filter((a) => !a.startsWith("-"));
+const mode = positional[0] === "start" || positional[0] === "build" ? positional[0] : "dev";
+const port = positional[1] ?? "3010";
 
 const env = {
   ...process.env,
   DEMO_MODE: "1",
   AUTH_DISABLED: "1",
-  // Hard-block every outbound vendor call. Ask Coach renders its
-  // "not configured" state; Film Room playback returns a disabled notice.
+  // Hard-block every outbound vendor call. Film Room playback returns a
+  // disabled notice; Coach is blocked too unless --live was passed.
   ATTENTION_API_KEY: "",
   SUPABASE_SERVICE_ROLE_KEY: "",
-  ...(process.env.DEMO_COACH === "1" ? {} : { ANTHROPIC_API_KEY: "", OPENAI_API_KEY: "" }),
+  ...(live ? { DEMO_COACH: "1" } : { ANTHROPIC_API_KEY: "", OPENAI_API_KEY: "" }),
 };
+
+if (live && !process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
+  console.warn(
+    "\n  ⚠  --live was passed but no ANTHROPIC_API_KEY / OPENAI_API_KEY is set in\n" +
+      "     your environment or .env.local, so Coach will still show as not\n" +
+      "     configured. Add one and re-run.\n"
+  );
+}
 
 console.log(
   `\n  Franchise Mode — DEMO (${mode})\n` +
@@ -32,9 +47,9 @@ console.log(
     (env.DEV_VIEWER_AGENT
       ? `  Viewing as AGENT: ${env.DEV_VIEWER_AGENT}\n`
       : `  Viewing as MANAGER. Set DEV_VIEWER_AGENT="Bianca Ortiz" to record the agent view.\n`) +
-    (process.env.DEMO_COACH === "1"
-      ? `  Ask Coach: LIVE (uses your real LLM key against fake data).\n`
-      : `  Ask Coach: off. Set DEMO_COACH=1 to demo it live.\n`)
+    (live
+      ? `  Ask Coach: LIVE — real model, fake data. Floating dock is on every page.\n`
+      : `  Ask Coach: off. Run \`npm run demo:live\` to demo it for real.\n`)
 );
 
 const child = spawn(
