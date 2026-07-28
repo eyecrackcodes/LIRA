@@ -29,12 +29,16 @@ numbers.
 | **Close Diagnostics** | "Why did close rate move?" Effort vs outcome scatter, lead-source mix, CTV-share early warning |
 | **Placement** | Cohort quality by submission month with maturity shading, company-level rate, per-household capped rate |
 | **Commission** | Payable per statement month = max(0, net − draw), waterfall, chargeback log. Reps see only their own rows |
-| **Film Room** | Call transcripts from outlier days (a rep's own best day next to a slump day), talk-share, objection compare, audio playback |
-| **Ask Coach** | LLM chat grounded in the rep's own numbers — refuses anything outside the provided context |
+| **Film Room** † | Call transcripts from outlier days (a rep's own best day next to a slump day), talk-share, objection compare, audio playback |
+| **Ask Coach** † | LLM chat grounded in the rep's own numbers — refuses anything outside the provided context |
 | **Data Health** | Freshness per table, quality issues, and ingestion-gap detection for trigger-based pipelines |
 
 Stack: **Next.js 16** (App Router, server components for all data) · **Tailwind v4** ·
 **Recharts** · **Supabase** (Postgres + Auth).
+
+† Needs a third-party service to be fully live — see
+[Optional integrations](#optional-integrations). Both degrade gracefully: the
+pages render and stay useful without them.
 
 ---
 
@@ -109,6 +113,71 @@ looks like: [`src/lib/demo.ts`](src/lib/demo.ts) generates a complete, internall
 consistent warehouse, and [`src/lib/demo-client.ts`](src/lib/demo-client.ts) is a
 mock PostgREST client, so **you can build and demo every page before you have a
 single row of real data.**
+
+---
+
+## Optional integrations
+
+Three features reach outside your warehouse. **None is required** — the app runs
+fully without all three, and each fails to a clear message rather than a broken
+page. Set them up when you want that feature live.
+
+### Film Room playback (call recordings)
+
+The Film Room reads transcripts from your warehouse (`call_transcripts`), so the
+reading, comparison, talk-share, and objection views **all work with no
+integration at all**. Only the audio **play button** needs a provider.
+
+The reference implementation
+([`src/app/api/film/media/[uuid]/route.ts`](src/app/api/film/media/%5Buuid%5D/route.ts))
+targets **[Attention](https://www.attention.com)**: it POSTs to
+`/v2/conversations/{id}/media/download` and gets back a short-lived presigned
+MP4 URL, which a plain `<audio>` element streams. The route is deliberately thin
+— about 20 lines of provider-specific code — because swapping providers means
+replacing one `fetch`:
+
+```ts
+// Return { src: "<a URL an <audio> element can play>" } from your provider.
+// The route already handles auth (manager = any call, rep = own calls only),
+// validates the UUID, and resolves the call's owner before fetching anything.
+```
+
+Without `ATTENTION_API_KEY` set, the play button returns a **503 with "playback
+isn't configured"** and everything else on the page works. If you use Gong,
+Chorus, Dialpad, Twilio, or your own storage, point that fetch at whatever
+returns a playable URL for a call ID.
+
+> **The transcript capture itself is out of scope for this repo.** `call_transcripts`
+> is populated by an upstream job that decides which days are worth recording
+> (the interesting design choice: capture *outlier* days only — a rep's own big
+> day and their zero-conversion day — so the library stays small and every
+> comparison is that rep against themselves). [DATA-MODEL.md](DATA-MODEL.md)
+> documents the table shape and the trigger definitions so you can write your own.
+
+### Ask Coach (LLM chat)
+
+Set **one** of `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (Anthropic wins if both
+are present); override the model with `COACH_MODEL`. Unset, the page renders its
+"not configured" state.
+
+The context it sends is deliberately narrow — the same numbers on the stack-rank
+board plus the viewer's own book — and the system prompt instructs it to refuse
+anything outside that block. **Keep that constraint if you change the prompt:**
+it's what stops the bot from inventing a number about someone's pay. Cost is
+modest (a few thousand input tokens per message); add prompt caching on the
+system prompt if you run it at volume.
+
+In the demo, Coach is off by default so the demo can't make network calls. Run
+`DEMO_COACH=1 npm run demo:start` to demo it live against the fake data using
+your own key.
+
+### Mailer engagement
+
+The mailer page reads QR-scan counters from your warehouse and can pull live
+figures from **[thanks.io](https://thanks.io)** via `THANKS_API_KEY`
+([`src/lib/thanksio.ts`](src/lib/thanksio.ts)). Unset, the page falls back to the
+warehouse snapshot. If you don't do direct mail, delete the page and its nav
+entry — nothing else depends on it.
 
 ---
 
