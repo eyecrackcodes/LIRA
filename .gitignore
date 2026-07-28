@@ -1,0 +1,20 @@
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# Never commit env files — .env.example is the only one tracked.
+.env
+.env.*
+!.env.example
+
+# Rep photos are real people. Keep them out of the template repo.
+public/agents/*
+!public/agents/.gitkeep
+
+.vercel/
+.turbo/
+*.log
+.DS_Store
+.stfolder/
