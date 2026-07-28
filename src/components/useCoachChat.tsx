@@ -25,14 +25,14 @@ export function useCoachChat() {
       const q = text.trim();
       if (!q || busy) return false;
 
-      // Snapshot for rollback, and capture the exact array we post.
-      let prev: CoachMsg[] = [];
-      let next: CoachMsg[] = [];
-      setMessages((cur) => {
-        prev = cur;
-        next = [...cur, { role: "user", content: q }];
-        return next;
-      });
+      // Build the outgoing array SYNCHRONOUSLY from current state. A
+      // setMessages(updater) callback does not run at the call site — React
+      // defers it — so reading `next` out of an updater here would post an
+      // empty array and the API would reject it with "Send at least one user
+      // message." (`messages` is in the dep list, so this closure is fresh.)
+      const prev = messages;
+      const next: CoachMsg[] = [...messages, { role: "user", content: q }];
+      setMessages(next);
       setError(null);
       setBusy(true);
 
@@ -58,7 +58,7 @@ export function useCoachChat() {
         setBusy(false);
       }
     },
-    [busy]
+    [messages, busy]
   );
 
   const reset = useCallback(() => {
