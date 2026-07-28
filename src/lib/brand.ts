@@ -7,16 +7,18 @@
  * and document title render them client-side; they are cosmetic strings, never
  * secrets.
  *
- *   NEXT_PUBLIC_BRAND_MARK     short mark, shown in the accent color   e.g. "ACME"
+ *   NEXT_PUBLIC_BRAND_MARK     short mark, shown in the accent color   e.g. "LIRA"
  *   NEXT_PUBLIC_BRAND_NAME     wordmark next to the mark               e.g. "Franchise"
- *   NEXT_PUBLIC_BRAND_TAGLINE  small line under the wordmark           e.g. "Sales Performance"
+ *   NEXT_PUBLIC_BRAND_TAGLINE  small line under the wordmark           e.g. "Life Insurance Reporting Analytics"
  */
 
 export const BRAND = {
-  mark: process.env.NEXT_PUBLIC_BRAND_MARK?.trim() || "ACME",
+  mark: process.env.NEXT_PUBLIC_BRAND_MARK?.trim() || "LIRA",
   name: process.env.NEXT_PUBLIC_BRAND_NAME?.trim() || "Franchise",
-  tagline: process.env.NEXT_PUBLIC_BRAND_TAGLINE?.trim() || "Sales Performance",
+  tagline:
+    process.env.NEXT_PUBLIC_BRAND_TAGLINE?.trim() ||
+    "Life Insurance Reporting Analytics",
 } as const;
 
-/** "ACME Franchise" — for <title>, emails, and anywhere the two read as one. */
+/** "LIRA Franchise" — for <title>, emails, and anywhere the two read as one. */
 export const BRAND_FULL = `${BRAND.mark} ${BRAND.name}`;

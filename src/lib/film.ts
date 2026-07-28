@@ -91,9 +91,10 @@ export function pickLatestColdCall(days: FilmDay[]): CallTranscriptRow | null {
 // Attention emits turns as "Name (Role):\n<utterance>", where Role — when
 // present — is "Salesperson" / "Prospect" (also "Automated System", a bank
 // rep, etc.). Two things make the raw labels unreliable and drove this rewrite:
-//   1. The name is STT-guessed and mangled — AD Hutton shows up as Aaron
-//      Hutton/Hinton/Hood/Hayden/Headden/Hedden/Arron/"Unknown Salesperson"
-//      across (and within) calls, and his nickname never matches "Aaron".
+//   1. The name is STT-guessed and mangled — one rep in our own data showed up
+//      under seven different surname spellings plus "Unknown Salesperson",
+//      sometimes varying WITHIN a single call, and a rep who goes by a nickname
+//      never matches their transcribed legal first name.
 //   2. The old parser required a bare "Name:\n" header, so any call with the
 //      "(Salesperson)" role suffix failed to split at all and collapsed into
 //      one speaker.
@@ -180,8 +181,9 @@ interface RawTurn {
 
 /**
  * Resolve every turn to Agent / Client / Other. agentName (the roster name) is
- * an extra signal — matched on any name token ≥ 3 chars, so "John Sivy" catches
- * transcribed "John Sivey"; it just won't fire for nickname-only cases like AD.
+ * an extra signal — matched on any name token ≥ 3 chars, so "Dana Reyes" still
+ * catches a transcribed "Dana Reyess"; it just won't fire when the rep goes by
+ * initials or a nickname that shares no token with their roster name.
  */
 export function parseTranscript(raw: string, agentName?: string): TranscriptTurn[] {
   const text = raw ?? "";

@@ -1,13 +1,19 @@
-# Franchise Mode — a sales performance suite that feels like a video game
+# LIRA — Life Insurance Reporting Analytics
 
-Most sales dashboards are a wall of numbers nobody opens twice. This one treats
-every rep as a **player**: a card with an overall rating, attribute bars, trend
+**A sales performance suite that feels like a video game.**
+
+Most insurance dashboards are a wall of numbers nobody opens twice. LIRA treats
+every agent as a **player**: a card with an overall rating, attribute bars, trend
 arrows, weekly badges, and a trophy case — backed by real production data, with
 the raw stat always shown next to the rating so nobody coaches off a vibe.
 
-Built for a small, remote, high-velocity sales team (10–20 reps) where one
-manager runs daily coaching, weekly 1:1s, and a Monday all-hands off the same
-numbers.
+Built for a small, remote, high-velocity agency (10–20 agents) where one manager
+runs daily coaching, weekly 1:1s, and a Monday all-hands off the same numbers.
+
+The domain model is life insurance — submission cohorts and place rate,
+chargebacks and persistency, underwriting mix, commission against a monthly draw.
+If you sell something else with a delayed fulfillment step between "sold" and
+"paid," the same shape fits: rename the concepts and the math holds.
 
 > **Try it in 30 seconds — no database, no API keys, no signup:**
 > ```bash
@@ -71,9 +77,9 @@ they're the difference between a dashboard people trust and one they argue with.
 **Branding** — three env vars, no code edits ([`src/lib/brand.ts`](src/lib/brand.ts)):
 
 ```bash
-NEXT_PUBLIC_BRAND_MARK=ACME          # short mark, accent color
+NEXT_PUBLIC_BRAND_MARK=LIRA          # short mark, accent color
 NEXT_PUBLIC_BRAND_NAME=Franchise     # wordmark
-NEXT_PUBLIC_BRAND_TAGLINE=Sales Performance
+NEXT_PUBLIC_BRAND_TAGLINE=Life Insurance Reporting Analytics
 ```
 
 **Comp plan** — [`src/lib/config.ts`](src/lib/config.ts): monthly draw and
