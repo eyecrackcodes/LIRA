@@ -10,6 +10,22 @@
 // here (to "") wins over the file and guarantees the demo cannot reach a real
 // service. Empty string — not delete — is what makes them stick.
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+// Next loads .env.local; this launcher does not. So to warn accurately about a
+// missing LLM key we have to look in the file too, or we'd cry wolf every time
+// the key lives where it normally lives.
+function hasKeyInEnvFile() {
+  for (const f of [".env.local", ".env"]) {
+    try {
+      const txt = readFileSync(f, "utf8");
+      if (/^\s*(ANTHROPIC_API_KEY|OPENAI_API_KEY)\s*=\s*\S/m.test(txt)) return true;
+    } catch {
+      // File absent or unreadable — keep looking.
+    }
+  }
+  return false;
+}
 
 // dev = hot reload; build = compile with fixtures (so nothing real can be
 // baked into prerendered output); start = serve that build (best for recording).
@@ -32,7 +48,12 @@ const env = {
   ...(live ? { DEMO_COACH: "1" } : { ANTHROPIC_API_KEY: "", OPENAI_API_KEY: "" }),
 };
 
-if (live && !process.env.ANTHROPIC_API_KEY && !process.env.OPENAI_API_KEY) {
+if (
+  live &&
+  !process.env.ANTHROPIC_API_KEY &&
+  !process.env.OPENAI_API_KEY &&
+  !hasKeyInEnvFile()
+) {
   console.warn(
     "\n  ⚠  --live was passed but no ANTHROPIC_API_KEY / OPENAI_API_KEY is set in\n" +
       "     your environment or .env.local, so Coach will still show as not\n" +
