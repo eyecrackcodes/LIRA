@@ -41,6 +41,15 @@ const env = {
   ...process.env,
   DEMO_MODE: "1",
   AUTH_DISABLED: "1",
+  // Neutral branding for screencasts — never show the real org name in a demo.
+  // NEXT_PUBLIC_* is inlined at BUILD time, so these only take effect for a
+  // build produced through this launcher (`npm run demo:build`). A plain
+  // `next build` bakes in the production defaults from src/lib/brand.ts.
+  // Override on the command line if you want a different name in the video.
+  NEXT_PUBLIC_BRAND_MARK: process.env.NEXT_PUBLIC_BRAND_MARK || "LIRA",
+  NEXT_PUBLIC_BRAND_NAME: process.env.NEXT_PUBLIC_BRAND_NAME || "Franchise",
+  NEXT_PUBLIC_BRAND_TAGLINE:
+    process.env.NEXT_PUBLIC_BRAND_TAGLINE || "Life Insurance Reporting Analytics",
   // Hard-block every outbound vendor call. Film Room playback returns a
   // disabled notice; Coach is blocked too unless --live was passed.
   ATTENTION_API_KEY: "",
@@ -62,12 +71,12 @@ if (
 }
 
 console.log(
-  `\n  Franchise Mode — DEMO (${mode})\n` +
+  `\n  ${env.NEXT_PUBLIC_BRAND_MARK} ${env.NEXT_PUBLIC_BRAND_NAME} — DEMO (${mode})\n` +
     `  http://localhost:${port}\n\n` +
     `  Fictional roster, fictional clients, fictional pay. No real data, no network calls.\n` +
     (env.DEV_VIEWER_AGENT
       ? `  Viewing as AGENT: ${env.DEV_VIEWER_AGENT}\n`
-      : `  Viewing as MANAGER. Set DEV_VIEWER_AGENT="Bianca Ortiz" to record the agent view.\n`) +
+      : `  Viewing as MANAGER. Use the sidebar's "View as agent" to preview any agent live.\n`) +
     (live
       ? `  Ask Coach: LIVE — real model, fake data. Floating dock is on every page.\n`
       : `  Ask Coach: off. Run \`npm run demo:live\` to demo it for real.\n`)

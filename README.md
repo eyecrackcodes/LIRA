@@ -221,6 +221,12 @@ This app displays individual pay. Two layers protect it, and you need both:
    `dim_agent.agent_email`) sees only their own commission, own film, and no
    cost/margin pages; anyone else gets a no-access screen. Every restriction is
    enforced server-side in the page, not just hidden in the nav.
+
+   Managers also get **"View as agent"** (sidebar): pick a rep and the whole app
+   renders exactly as they see it — agent nav, own-rows commission, own film —
+   with an amber banner and one-click exit. The impersonation cookie is only
+   honored when the *real* signed-in identity is a manager, so it can only ever
+   de-escalate; an agent planting the cookie changes nothing.
 2. **Database layer** ([`supabase/rls-pay-tables.sql`](supabase/rls-pay-tables.sql))
    — apply this before any rep logs in. Without RLS, your anon key serves every
    rep's pay to anyone who has it.

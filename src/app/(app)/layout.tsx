@@ -4,8 +4,11 @@ import { coachConfigured } from "@/lib/coach";
 import Nav from "@/components/Nav";
 import ThemeToggle from "@/components/ThemeToggle";
 import { FreshnessStamp, StaleBanner } from "@/components/FreshnessStamp";
-import { getFreshness } from "@/lib/queries";
-import { getViewer } from "@/lib/auth";
+import ViewAsBanner from "@/components/ViewAsBanner";
+import ViewAsSwitcher from "@/components/ViewAsSwitcher";
+import { getActiveAgents, getFreshness } from "@/lib/queries";
+import { getViewer, isManager } from "@/lib/auth";
+import { departedAgentSet } from "@/lib/roster";
 import { agentSlug } from "@/lib/format";
 import { redirect } from "next/navigation";
 
@@ -45,6 +48,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const freshness = await getFreshness();
 
+  // Managers get the "View as agent" switcher. While a preview is active the
+  // effective role is "agent", so this list is empty and the switcher hides —
+  // the banner carries the exit instead.
+  let switchable: { name: string; slug: string }[] = [];
+  if (isManager(viewer)) {
+    const [agents, departed] = await Promise.all([getActiveAgents(), departedAgentSet()]);
+    switchable = agents
+      .filter((a) => !departed.has(a.agent))
+      .map((a) => ({ name: a.agent, slug: agentSlug(a.agent) }));
+  }
+
   return (
     <>
       {process.env.DEMO_MODE === "1" && (
@@ -52,6 +66,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           Demo data · fictional agents, clients &amp; figures · nothing here is real
         </div>
       )}
+      {viewer.viewingAs && <ViewAsBanner agent={viewer.agent!} />}
       <StaleBanner freshness={freshness} />
       <div className="mx-auto flex max-w-[1440px] flex-col lg:flex-row">
         <aside className="shrink-0 border-b border-edge px-4 py-4 lg:min-h-screen lg:w-56 lg:border-b-0 lg:border-r lg:py-6">
@@ -73,6 +88,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="mt-4 border-t border-edge pt-4">
             <ThemeToggle />
           </div>
+          {switchable.length > 0 && <ViewAsSwitcher agents={switchable} />}
           <div className="mt-6 hidden border-t border-edge pt-4 lg:block">
             <FreshnessStamp freshness={freshness} />
             <div className="mt-2 text-[11px] leading-relaxed text-faint">
@@ -101,8 +117,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </main>
       </div>
       {/* Mounted in the layout (not per page) so the App Router keeps it alive
-          across navigation — the conversation follows the viewer around. */}
+          across navigation — the conversation follows the viewer around. Keyed
+          by identity so switching into/out of a "View as" preview starts a
+          fresh conversation instead of leaking the manager's transcript into
+          the agent view. */}
       <CoachDock
+        key={viewer.agent ?? viewer.email}
         configured={coachConfigured()}
         role={viewer.role === "agent" ? "agent" : "manager"}
       />

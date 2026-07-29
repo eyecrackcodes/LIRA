@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { cache } from "react";
 import { getActiveAgents } from "./queries";
+import { agentSlug } from "./format";
 
 /**
  * Supabase Auth (Google OAuth + email magic link) with two roles:
@@ -23,7 +24,23 @@ export interface Viewer {
   role: Role;
   /** dim_agent.agent name when role === "agent" */
   agent: string | null;
+  /**
+   * Present when a manager is previewing the app as an agent ("View as").
+   * The viewer then LOOKS like that agent to every gate in the app — that's
+   * the point — and this field is what lets the layout show the exit banner.
+   */
+  viewingAs?: { realEmail: string };
 }
+
+/**
+ * "View as" cookie — holds the slug of the agent a manager is previewing.
+ * Deliberately just a slug, not a signed token: the cookie is only ever
+ * APPLIED when the real signed-in identity is a manager (see getViewer), so
+ * a non-manager planting it changes nothing, and a manager tampering with it
+ * can only reach views they already outrank. Impersonation de-escalates,
+ * never escalates.
+ */
+export const VIEW_AS_COOKIE = "view-as-agent";
 
 function managerSet(): Set<string> {
   const fromEnv = (process.env.MANAGER_EMAILS ?? "")
@@ -53,8 +70,11 @@ export async function createAuthClient() {
   });
 }
 
-/** Who is looking at this request? Cached per render pass. */
-export const getViewer = cache(async (): Promise<Viewer | null> => {
+/**
+ * The signed-in identity with NO "View as" applied. This is what the
+ * impersonation actions gate on — everything else should use getViewer().
+ */
+export const getRealViewer = cache(async (): Promise<Viewer | null> => {
   if (process.env.AUTH_DISABLED === "1") {
     // Dev-only: set DEV_VIEWER_AGENT to an exact dim_agent name to browse the
     // app as that agent (for checking agent-scoped views). Never in production.
@@ -77,6 +97,34 @@ export const getViewer = cache(async (): Promise<Viewer | null> => {
   if (me) return { email, role: "agent", agent: me.agent };
 
   return { email, role: "none", agent: null };
+});
+
+/**
+ * Who is looking at this request? Cached per render pass.
+ *
+ * If the real identity is a MANAGER and the "View as" cookie names an active
+ * agent, the returned viewer IS that agent (role, name, email) — so film
+ * privacy, commission scoping, nav gating, and Coach context all behave
+ * exactly as they would for the agent. Non-managers never get the swap, and a
+ * stale cookie (agent departed overnight) quietly falls back to the real view.
+ */
+export const getViewer = cache(async (): Promise<Viewer | null> => {
+  const real = await getRealViewer();
+  if (!real || real.role !== "manager") return real;
+
+  const slug = (await cookies()).get(VIEW_AS_COOKIE)?.value;
+  if (!slug) return real;
+
+  const agents = await getActiveAgents();
+  const target = agents.find((a) => agentSlug(a.agent) === slug);
+  if (!target) return real;
+
+  return {
+    email: (target.agent_email ?? real.email).toLowerCase(),
+    role: "agent",
+    agent: target.agent,
+    viewingAs: { realEmail: real.email },
+  };
 });
 
 export function isManager(viewer: Viewer | null): boolean {
