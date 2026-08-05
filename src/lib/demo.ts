@@ -613,9 +613,24 @@ export function demoDb(): DemoDb {
     v_agent_day_trigger,
     // A clean bill of health reads better on camera than invented problems.
     v_data_quality: [],
-    app_roster_override: [],
-    // weekly_data/placement_cohort are only probed for freshness stamps.
-    weekly_data: [{ synced_at: syncedAt }],
+    // Departures the "manager" has logged in-app, so Team Pulse's roster panel
+    // and the roster page's reinstate list both have something real to show.
+    // Staggered on purpose: one inside a 4/6-week window, one inside 12, one old.
+    app_roster_override: [
+      { agent: DEPARTED[0], status: "departed", departed_on: weekStarts[WEEKS - 3], note: null },
+      { agent: DEPARTED[1], status: "departed", departed_on: weekStarts[WEEKS - 9], note: null },
+      { agent: DEPARTED[2], status: "departed", departed_on: weekStarts[WEEKS - 20], note: null },
+    ],
+    // weekly_data carries the freshness stamp AND doubles as the sales-tenure
+    // spine (getAgentSalesStart reads agent + week_start off it). Built from the
+    // same agent-week facts, so a new hire's first week here matches their
+    // thin history everywhere else — which is what makes the "started selling
+    // vs. already selling before the data begins" distinction demonstrable.
+    weekly_data: aw.map((w) => ({
+      agent: w.agent,
+      week_start: w.week_start,
+      synced_at: syncedAt,
+    })),
     placement_cohort: [{ synced_at: syncedAt }],
     lead_source_week: [{ captured_at: syncedAt }],
   };

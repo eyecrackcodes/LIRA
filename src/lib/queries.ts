@@ -299,6 +299,73 @@ export async function getDailyActivity(opts?: {
   });
 }
 
+/**
+ * First week each agent shows up in production data — i.e. tenure SELLING.
+ *
+ * WHY THIS EXISTS: `weekly_data.tenure_mo` is tenure with the COMPANY, not time
+ * on the phones. Agents promoted from another seat (customer service, for
+ * example) carry months of company tenure into week one of selling, so keying
+ * "is this a new agent?" off tenure_mo tells the manager to judge a two-week
+ * rookie on trailing revenue — exactly backwards. Anything that means "time as
+ * an agent" should use this instead.
+ *
+ * Deliberately unwindowed: the whole point is to see a start date that may sit
+ * far outside the trailing window the pages load.
+ */
+export interface SalesStarts {
+  /** agent → first week they appear in production data. */
+  starts: Map<string, string>;
+  /**
+   * Earliest week in the whole table. An agent whose first week EQUALS this
+   * predates the data — their real start is unknowable from here, so it must
+   * not be read as "started recently".
+   */
+  datasetStart: string | null;
+}
+
+export async function getAgentSalesStart(): Promise<SalesStarts> {
+  const sb = getWarehouse();
+  const rows = await fetchAll<{ agent: string; week_start: string }>((from, to) =>
+    sb
+      .from("weekly_data")
+      .select("agent, week_start")
+      .order("week_start", { ascending: true })
+      .range(from, to)
+  );
+  const starts = new Map<string, string>();
+  let datasetStart: string | null = null;
+  for (const r of rows) {
+    if (!r.agent || !r.week_start) continue;
+    if (!datasetStart || r.week_start < datasetStart) datasetStart = r.week_start;
+    const prev = starts.get(r.agent);
+    if (!prev || r.week_start < prev) starts.set(r.agent, r.week_start);
+  }
+  return { starts, datasetStart };
+}
+
+/** Whole months between an ISO date and now. */
+export function monthsSince(iso: string | undefined | null): number | null {
+  if (!iso) return null;
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return null;
+  return (Date.now() - then) / (1000 * 60 * 60 * 24 * 30.44);
+}
+
+/**
+ * Time as an AGENT, and whether we can actually trust it.
+ *
+ * `observed` is the important flag: false means the agent was already selling
+ * before this dataset begins, so `months` is a floor (the length of the data),
+ * not their tenure. Callers must treat un-observed agents as ESTABLISHED —
+ * otherwise every veteran reads as a rookie the moment the history is short.
+ */
+export function salesTenure(s: SalesStarts, agent: string) {
+  const startedOn = s.starts.get(agent) ?? null;
+  const observed =
+    startedOn != null && s.datasetStart != null && startedOn > s.datasetStart;
+  return { startedOn, observed, months: observed ? monthsSince(startedOn) : null };
+}
+
 export async function getCommissionLedger(): Promise<CommissionLedgerRow[]> {
   const sb = getWarehouse();
   return fetchAll<CommissionLedgerRow>((from, to) =>
