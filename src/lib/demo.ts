@@ -386,7 +386,18 @@ export function demoDb(): DemoDb {
   const commission_ledger: Row[] = [];
   let pn = 41000;
   const stmtMonths = monthStarts.slice(-7).map((m) => m.slice(0, 7));
-  for (const sm of stmtMonths) {
+  // The month after a statement month is when its capture actually runs, so the
+  // NEWEST statement month has no capture yet — it holds only rows deferred
+  // forward by the previous settlement. That's the real shape (see
+  // lib/commission-cycle.ts) and it's what makes the "awaiting capture" state
+  // and the production-vs-deferred split demonstrable instead of always empty.
+  const nextMonth = (ym: string) => {
+    const [y, m] = ym.split("-").map(Number);
+    return new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7);
+  };
+  const capturedMonths = stmtMonths.slice(0, -1);
+  const pendingMonth = stmtMonths[stmtMonths.length - 1];
+  for (const sm of capturedMonths) {
     for (const a of ACTIVE) {
       const n = Math.round(jitter(a.leads * a.close * 3.6, 0.2));
       for (let i = 0; i < n; i++) {
@@ -406,9 +417,40 @@ export function demoDb(): DemoDb {
           pay_date: `${sm}-20`, status: chargedBack ? "Charged Back" : "Paid",
           chargeback: cb, chargeback_month: chargedBack ? sm : null,
           chargeback_date: chargedBack ? `${sm}-27` : null,
-          net: round2(gross + cb), origin: "CAPTURE", synced_at: syncedAt,
+          net: round2(gross + cb), origin: "CAPTURE",
+          first_seen: `${nextMonth(sm)}-05`, synced_at: syncedAt,
         });
       }
+    }
+  }
+
+  // Settlement drift deferred onto the pending month: policies that didn't tie
+  // out on the last statement. Real dollars, but LAST cycle's production —
+  // reported on their own line and never counted as this month's pace.
+  for (const a of ACTIVE.slice(0, 6)) {
+    const n = 1 + Math.floor(r() * 3);
+    for (let i = 0; i < n; i++) {
+      const [carrier, product, uw] = CARRIERS[Math.floor(r() * CARRIERS.length)];
+      const prem = Math.round(jitter(a.ticket, 0.3));
+      const isGI = uw === "GI";
+      const rate = isGI ? 0.15 : 0.3;
+      const gross = isGI ? Math.min(200, round2(prem * rate)) : round2(prem * rate);
+      const chargedBack = r() < 0.35; // drift skews to chargebacks that landed late
+      const cb = chargedBack ? -gross : 0;
+      pn += 1 + Math.floor(r() * 3);
+      commission_ledger.push({
+        policy_number: `DM-${pn}`, policy_key: String(pn), agent: a.agent,
+        agent_email: emailOf(a.agent), carrier, product, uw_type: uw,
+        commissionable_premium: prem, rate: `${(rate * 100).toFixed(1)}%`,
+        commission: gross, statement_month: pendingMonth,
+        pay_date: `${nextMonth(pendingMonth)}-20`,
+        status: chargedBack ? "Charged Back" : "Paid",
+        chargeback: cb, chargeback_month: chargedBack ? pendingMonth : null,
+        chargeback_date: chargedBack ? `${pendingMonth}-27` : null,
+        net: round2(gross + cb), origin: "RECON",
+        // Stamped by the run that settled the previous month.
+        first_seen: `${pendingMonth}-05`, synced_at: syncedAt,
+      });
     }
   }
   const comm_summary: Row[] = [];

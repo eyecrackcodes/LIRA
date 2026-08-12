@@ -6,6 +6,7 @@ import { computeUwMix } from "@/lib/underwriting";
 import { fmtInt, fmtMoneyCents, fmtMoney, fmtMonth, fmtPct, fmtSignedMoney } from "@/lib/format";
 import { HeaderTip, Panel, SectionTitle, StatTile } from "@/components/ui";
 import { WaterfallChart } from "@/components/charts";
+import { agentsAboveDraw, buildCommissionCycle } from "@/lib/commission-cycle";
 import { MONTHLY_DRAW } from "@/lib/config";
 
 export const dynamic = "force-dynamic"; // viewer-scoped — never cache one role's render for another
@@ -159,6 +160,10 @@ export default async function CommissionPage({
   // months) — a stable, large-sample read, not the single-month snapshot above.
   const uwMix = computeUwMix(fullLedger);
 
+  // Production vs. carried-forward drift. Never blend these: see commission-cycle.ts.
+  const cycle = buildCommissionCycle(ledger, month);
+  const aboveDraw = agentsAboveDraw(cycle, MONTHLY_DRAW);
+
 
   return (
     <div className="space-y-6">
@@ -197,12 +202,110 @@ export default async function CommissionPage({
       )}
 
 
+      {cycle.stage === "awaiting-capture" && (
+        <div className="rounded-sm border border-warn/40 bg-warn/10 px-4 py-3 text-sm text-warn">
+          <div className="display mb-1 text-xs font-bold uppercase tracking-wider">
+            Awaiting capture — no {fmtMonth(month)} production yet
+          </div>
+          <p className="leading-relaxed">
+            The monthly capture hasn&apos;t run for this statement month, so none of the figures
+            below represent {fmtMonth(month)} production. What&apos;s here is{" "}
+            {fmtInt(cycle.deferredRows)} row{cycle.deferredRows === 1 ? "" : "s"} (
+            {fmtMoneyCents(cycle.deferredNet)}) deferred forward from an earlier settlement.
+            Payable stays at $0 until capture lands — expected, not a data gap.
+            {cycle.lastCapturedMonth && cycle.lastCaptureRunOn && (
+              <>
+                {" "}
+                Last capture: {fmtMonth(cycle.lastCapturedMonth)} statement, landed{" "}
+                {cycle.lastCaptureRunOn}.
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatTile label="Gross commission" value={fmtMoney(gross)} sample={`${fmtInt(rows.length)} policies`} />
         <StatTile label="Chargebacks" value={<span className="text-down">{fmtSignedMoney(chargebacks)}</span>} />
         <StatTile label="Net" value={fmtMoney(net)} />
         <StatTile label="Payable" value={<span className="text-gold">{fmtMoney(payable)}</span>} sample={manager ? `after $${MONTHLY_DRAW.toLocaleString("en-US")} draw × agent` : `after $${MONTHLY_DRAW.toLocaleString("en-US")} monthly draw`} />
       </div>
+
+      {/* Production and carried-forward drift on separate labeled lines. Folding
+          them together is what makes a freshly-settled month show phantom pace. */}
+      <Panel>
+        <SectionTitle
+          sub={
+            <HeaderTip
+              label="origin=CAPTURE is production · everything else is carried forward"
+              tip="A settlement defers non-tying policies onto the NEXT statement month, so a month can hold real dollars with zero production behind them. Only origin=CAPTURE rows are counted as this month's production; RECON/correction rows are reported on their own line and never fed into a pace read."
+              align="right"
+            />
+          }
+        >
+          What&apos;s Actually In {fmtMonth(month)}
+        </SectionTitle>
+        <dl className="divide-y divide-edge/50 text-sm">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+            <dt className="text-ink">
+              Production this month
+              <span className="ml-2 text-[11px] uppercase tracking-wider text-faint">
+                origin=CAPTURE
+              </span>
+            </dt>
+            <dd className="num text-right">
+              {cycle.stage === "captured" ? (
+                <>
+                  <span className="font-semibold text-ink">
+                    {fmtMoneyCents(cycle.captureNet)}
+                  </span>
+                  <span className="ml-2 text-faint">
+                    {fmtInt(cycle.captureRows)} policies · {aboveDraw} of{" "}
+                    {cycle.captureNetByAgent.size} agents above draw
+                  </span>
+                </>
+              ) : cycle.stage === "awaiting-capture" ? (
+                <span className="text-warn">awaiting capture — no production signal</span>
+              ) : (
+                <span className="text-faint">
+                  not captured (backfilled month) — no production signal
+                </span>
+              )}
+            </dd>
+          </div>
+          <div className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+            <dt className="text-ink">
+              {/* SEED months are a historical import, not settlement drift —
+                  calling those "deferred" would misdescribe the backfill. */}
+              {cycle.stage === "legacy"
+                ? "Backfilled / non-capture rows"
+                : "Deferred from an earlier settlement"}
+              {cycle.deferredOrigins.length > 0 && (
+                <span className="ml-2 text-[11px] uppercase tracking-wider text-faint">
+                  origin={cycle.deferredOrigins.join(", ")}
+                </span>
+              )}
+            </dt>
+            <dd className="num text-right">
+              {cycle.deferredRows === 0 ? (
+                <span className="text-faint">—</span>
+              ) : (
+                <>
+                  <span className="font-semibold text-ink">
+                    {fmtMoneyCents(cycle.deferredNet)}
+                  </span>
+                  <span className="ml-2 text-faint">{fmtInt(cycle.deferredRows)} policies</span>
+                </>
+              )}
+            </dd>
+          </div>
+        </dl>
+        <p className="mt-3 text-[11px] text-faint">
+          These two lines sum to Net above. They are kept apart on purpose: deferred dollars are
+          real pay, but they are LAST cycle&apos;s production, so counting them as this
+          month&apos;s would show a phantom pace on every month right after a settlement runs.
+        </p>
+      </Panel>
 
       <Panel>
         <SectionTitle sub={`statement month ${fmtMonth(month)} · ${manager ? "team totals" : "your totals"}`}>
@@ -213,7 +316,7 @@ export default async function CommissionPage({
 
       {manager ? (
         <Panel>
-          <SectionTitle sub="payable = max(0, Σnet − draw) per agent · net is signed">
+          <SectionTitle sub="payable = max(0, Σnet − draw) per agent · net is signed · production = origin=CAPTURE only">
             Agent Breakdown — {fmtMonth(month)}
           </SectionTitle>
           <div className="overflow-x-auto">
@@ -251,6 +354,13 @@ export default async function CommissionPage({
                   </th>
                   <th className="py-2 pr-4 text-right">
                     <HeaderTip
+                      label="Production"
+                      tip="The origin=CAPTURE portion of Net — what this agent actually produced in this statement month. The remainder of Net was deferred forward from an earlier settlement and belongs to a prior cycle, so only this column is a production read."
+                      align="right"
+                    />
+                  </th>
+                  <th className="py-2 pr-4 text-right">
+                    <HeaderTip
                       label="Payable"
                       tip={`max(0, net − $${MONTHLY_DRAW.toLocaleString("en-US")} monthly draw). Net can be negative; payable can't. The commission team's statement is the source of truth.`}
                       align="right"
@@ -259,7 +369,7 @@ export default async function CommissionPage({
                   <th className="py-2 text-left">
                     <HeaderTip
                       label="Origin"
-                      tip="Where the ledger row came from: SEED (historical import), CAPTURE (nightly), or a June correction."
+                      tip="Where the ledger row came from: CAPTURE (the monthly production capture), RECON (settlement reconciliation — usually deferred forward from an earlier cycle), or SEED (historical import). Only CAPTURE means production in THIS statement month."
                     />
                   </th>
                 </tr>
@@ -280,6 +390,15 @@ export default async function CommissionPage({
                     </td>
                     <td className={`py-2 pr-4 text-right ${a.net < 0 ? "text-down" : ""}`}>
                       {fmtMoneyCents(a.net)}
+                    </td>
+                    <td className="py-2 pr-4 text-right">
+                      {cycle.captureNetByAgent.has(a.agent) ? (
+                        fmtMoneyCents(cycle.captureNetByAgent.get(a.agent)!)
+                      ) : (
+                        <span className="text-faint" title="No captured production in this statement month — this agent's Net is entirely carried forward.">
+                          —
+                        </span>
+                      )}
                     </td>
                     <td className={`py-2 pr-4 text-right font-semibold ${a.payable > 0 ? "text-gold" : "text-faint"}`}>
                       {fmtMoneyCents(a.payable)}

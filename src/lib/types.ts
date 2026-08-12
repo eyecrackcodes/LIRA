@@ -218,7 +218,19 @@ export interface CommissionLedgerRow {
   chargeback_month: string | null;
   chargeback_date: string | null;
   net: number | null;
-  origin: string | null; // SEED | CAPTURE | JUNE-CORRECTION | JUNE-CORR-MOVED
+  /**
+   * How the row got here — NOT interchangeable, and the difference decides
+   * whether a row represents this month's production:
+   *   CAPTURE   organic monthly capture. The ONLY origin that means
+   *             "production booked in this statement month".
+   *   RECON     settlement reconciliation — typically policies deferred out of
+   *             an EARLIER cycle (timing mismatches, late chargebacks) that
+   *             land against a later statement month.
+   *   SEED      one-time historical backfill (pre-capture months).
+   */
+  origin: string | null;
+  /** When this row first appeared in the ledger — a capture/settlement run stamp. */
+  first_seen: string | null;
   synced_at: string;
 }
 

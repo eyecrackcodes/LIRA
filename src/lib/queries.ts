@@ -130,6 +130,9 @@ export async function getDailyAgent(opts?: {
       .select("*")
       .gte("activity_date", isoDaysAgo(opts?.sinceDays ?? 35))
       .order("activity_date", { ascending: true })
+      // (activity_date, agent) is unique here -- needed as a total order so
+      // range paging past 1,000 rows can't duplicate or drop a row.
+      .order("agent", { ascending: true })
       .range(from, to);
     if (opts?.agent) q = q.eq("agent", opts.agent);
     return q;
@@ -293,6 +296,8 @@ export async function getDailyActivity(opts?: {
       )
       .gte("activity_date", isoDaysAgo(opts?.sinceDays ?? 84))
       .order("activity_date", { ascending: true })
+      // Unique with activity_date -- total order keeps paging stable.
+      .order("agent", { ascending: true })
       .range(from, to);
     if (opts?.agent) q = q.eq("agent", opts.agent);
     return q;
@@ -374,6 +379,11 @@ export async function getCommissionLedger(): Promise<CommissionLedgerRow[]> {
       .select("*")
       .order("statement_month", { ascending: true })
       .order("agent", { ascending: true })
+      // policy_key is unique per row and MUST stay as the final tiebreaker.
+      // Range paging over a non-total ORDER BY is not stable: a page boundary
+      // landing inside a tie group lets Postgres return one row on both pages
+      // and drop another -- silently, and reproducibly.
+      .order("policy_key", { ascending: true })
       .range(from, to)
   );
 }
@@ -392,7 +402,14 @@ const UW_LEDGER_COLS =
 export async function getAgentUwLedger(agent: string): Promise<UwLedgerRow[]> {
   const sb = getWarehouse();
   return fetchAll<UwLedgerRow>((from, to) =>
-    sb.from("commission_ledger").select(UW_LEDGER_COLS).eq("agent", agent).range(from, to)
+    // Ordered by the unique policy_key: this table pages, and range paging
+    // with NO order at all is arbitrary -- rows can repeat or vanish.
+    sb
+      .from("commission_ledger")
+      .select(UW_LEDGER_COLS)
+      .eq("agent", agent)
+      .order("policy_key", { ascending: true })
+      .range(from, to)
   );
 }
 
@@ -402,7 +419,11 @@ export async function getAgentUwLedger(agent: string): Promise<UwLedgerRow[]> {
 export async function getTeamUwLedger(): Promise<UwLedgerRow[]> {
   const sb = getWarehouse();
   return fetchAll<UwLedgerRow>((from, to) =>
-    sb.from("commission_ledger").select(UW_LEDGER_COLS).range(from, to)
+    sb
+      .from("commission_ledger")
+      .select(UW_LEDGER_COLS)
+      .order("policy_key", { ascending: true })
+      .range(from, to)
   );
 }
 
@@ -531,6 +552,8 @@ export async function getFilmMeta(opts?: {
       )
       .order("call_date", { ascending: false })
       .order("started_at", { ascending: true })
+      // Unique tiebreaker -- this table pages and two calls can share a start.
+      .order("conversation_uuid", { ascending: true })
       .range(from, to);
     if (opts?.agent) q = q.eq("agent", opts.agent);
     if (opts?.sinceDays) q = q.gte("call_date", isoDaysAgo(opts.sinceDays));
@@ -575,6 +598,9 @@ export async function getFilmCaptureHealth(lookbackDays = 30): Promise<FilmCaptu
       .select("captured_at")
       .gte("captured_at", isoDaysAgo(lookbackDays))
       .order("captured_at", { ascending: true })
+      // Many rows share a captured_at (bulk capture runs) -- without a unique
+      // tiebreaker the gap analysis pages over an unstable row set.
+      .order("conversation_uuid", { ascending: true })
       .range(from, to)
   );
   const runDates = [...new Set(rows.map((r) => r.captured_at.slice(0, 10)))].sort();
