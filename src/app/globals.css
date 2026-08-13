@@ -39,6 +39,25 @@
   --color-teal: #46b8a8;
   --chart-navy: #22436e;
 
+  /* Categorical series palette — encodes IDENTITY (which lead source, which
+     series). Never magnitude, never status. Kept separate from up/down/warn on
+     purpose: those carry good/bad meaning, so spending them on "series 3" makes
+     a neutral category read as a verdict.
+
+     Validated, not eyeballed: OKLCH lightness band, chroma floor, >=3:1 on the
+     panel surface, and colorblind separation (protanopia + deuteranopia,
+     Machado 2009 severity 1.0) on every adjacent pair. Assign slots IN ORDER
+     and never invent a 9th — fold the tail into --viz-other. */
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-4: #c98500;
+  --viz-5: #d55181;
+  --viz-6: #9085e9;
+  /* The fold-the-tail neutral — deliberately gray, because "Other" is not an
+     identity and must not compete with a real source for attention. */
+  --viz-other: #8b95ab;
+
   --tier-elite: var(--color-gold);
   --tier-star: var(--color-up);
   --tier-starter: var(--color-blue);
@@ -75,6 +94,17 @@ html[data-theme="light"] {
   --color-purple: #7456b0;
   --color-teal: #157a6e;
   --chart-navy: #2f5f9e;
+
+  /* Same hues re-stepped for the white panel — a selected light palette, not an
+     automatic flip. Slots 3/4/5 land just under 3:1 there, permitted only under
+     the relief rule, which is why the flow ships direct labels AND a table. */
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-4: #eda100;
+  --viz-5: #e87ba4;
+  --viz-6: #4a3aa7;
+  --viz-other: #59637c;
 
   --medal-silver: #6b7488;
   --medal-bronze: #9c5e2c;

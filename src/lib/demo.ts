@@ -547,7 +547,10 @@ export function demoDb(): DemoDb {
   ] as const;
   const v_lead_source_enriched: Row[] = [];
   for (const grain of ["week", "month"] as const) {
-    const periods = grain === "week" ? weekStarts.slice(-1) : monthStarts.slice(-5);
+    // Four weeks, not one: the newest is the in-progress week (the mix chart's
+    // partial bucket), and the three behind it are SETTLED — which is what the
+    // lead-flow Sankey charts, since a partial week understates conversion.
+    const periods = grain === "week" ? weekStarts.slice(-4) : monthStarts.slice(-5);
     for (const p of periods) {
       for (const a of ACTIVE) {
         for (const [source, group, isCtv, cpl] of SOURCES) {
