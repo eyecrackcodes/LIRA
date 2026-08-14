@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
  * "Generate Conversation Media Download URL" endpoint — a presigned,
  * short-lived MP4 URL (their playback CDN) that a plain <audio> element can
  * stream. Fetched fresh per listen; the ATTENTION_API_KEY never leaves the
- * server. Access: manager = any call; agent = own calls only.
+ * server. Access: any rostered teammate may play any call (Film Room is open to
+ * the whole team); signed-in users who aren't on the roster get nothing.
  * (Do NOT use attributes.videoUID — that Cloudflare Stream token only
  * resolves inside Attention's own player, not on public embed hosts.)
  */
@@ -27,10 +28,12 @@ export async function GET(
     return Response.json({ error: "Sign in required." }, { status: 401 });
   }
 
+  // Still resolved, but as an EXISTENCE check now (404 on an unknown uuid) —
+  // playback is no longer scoped to the call's owner.
   const owner = await getFilmCallOwner(uuid);
   if (!owner) return Response.json({ error: "Unknown call." }, { status: 404 });
-  if (!canViewAgentFilm(viewer, owner)) {
-    return Response.json({ error: "You can only listen to your own calls." }, { status: 403 });
+  if (!canViewAgentFilm(viewer)) {
+    return Response.json({ error: "Not authorized to play recordings." }, { status: 403 });
   }
 
   // Demo mode has no real recordings (and must never reach a real vendor API).

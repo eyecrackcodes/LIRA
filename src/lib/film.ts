@@ -8,8 +8,10 @@ import type { CallTranscriptRow } from "./types";
  * project doesn't have yet (the warehouse is read-only) — deferred.
  *
  * PRIVACY: transcripts carry client names/health/bank details. Every caller
- * into this module MUST gate with canViewAgentFilm() — managers see all film,
- * an agent sees only their OWN.
+ * into this module MUST still gate with canViewAgentFilm() — the gate is now
+ * "is this viewer on the roster at all" rather than "is this their own call"
+ * (Film Room is team-wide), but an ungated path would expose customer PII to a
+ * signed-in stranger.
  */
 
 // ---------------------------------------------------------------------------
@@ -129,8 +131,14 @@ const RE_CLIENT = /\b(prospect|customer|client)\b/;
 // Phrases the SALESPERSON says (final-expense script) — the tiebreaker that
 // identifies the agent when there's no role annotation and the name is useless.
 const AGENT_PHRASES = [
-  "luminary life",
-  "millionaire life",
+  // Your agency/carrier names, lowercased — reps say them in the intro, so they
+  // are the single strongest agent tell. Set AGENT_SCRIPT_PHRASES (comma-
+  // separated) to yours; the generic phrases below work without it, just less
+  // sharply on calls that carry no role annotation.
+  ...(process.env.AGENT_SCRIPT_PHRASES ?? "")
+    .split(",")
+    .map((p) => p.trim().toLowerCase())
+    .filter(Boolean),
   "final expense",
   "recorded line",
   "pleasure speaking",

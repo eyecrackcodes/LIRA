@@ -138,10 +138,23 @@ export async function requireManager(): Promise<Viewer | null> {
 }
 
 /**
- * Film Room privacy rule: a manager sees every agent's calls; an agent only
- * ever sees their OWN (transcripts/recordings carry client names + details).
+ * Film Room visibility: every rostered teammate can watch every agent's film.
+ *
+ * Opened deliberately (2026-08-13, manager's call) so the team can study each
+ * other's calls — peer film study is the point of a film room, and the previous
+ * own-calls-only rule meant an agent could never hear what a good call sounds
+ * like from someone else.
+ *
+ * What this widens: transcripts and recordings carry client names and
+ * health/bank details, so customer PII is now audible to every agent, not just
+ * to managers and the agent who took the call. That is the accepted tradeoff,
+ * not an oversight.
+ *
+ * The gate that still matters is the ACCOUNT gate — role "none" (a signed-in
+ * Google user who isn't on the roster) gets nothing. `agent` is deliberately
+ * not a parameter: taking one would imply a per-agent check that no longer
+ * happens.
  */
-export function canViewAgentFilm(viewer: Viewer | null, agent: string): boolean {
-  if (isManager(viewer)) return true;
-  return viewer?.role === "agent" && viewer.agent === agent;
+export function canViewAgentFilm(viewer: Viewer | null): boolean {
+  return isManager(viewer) || viewer?.role === "agent";
 }

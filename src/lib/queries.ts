@@ -629,7 +629,7 @@ export async function getFilmCallOwner(conversationUuid: string): Promise<string
 /**
  * Film Room — one full row including the transcript body (avg ~23K chars,
  * up to ~106K). Fetch on demand only, never in a list. Caller MUST gate with
- * canViewAgentFilm() (manager, or the agent's own call).
+ * canViewAgentFilm() (any rostered teammate — Film Room is team-wide).
  */
 export async function getCallTranscript(
   conversationUuid: string
@@ -651,6 +651,7 @@ export async function getCallTranscript(
  * Session View can pick the most objection-rich default. One round trip; only
  * ever called with a single day's call list (≤ ~10 rows), never a whole
  * library. Same access rule as getCallTranscript: gate with canViewAgentFilm().
+ * (Team-wide — still never ungated.)
  */
 export async function getCallTranscriptsByUuids(
   conversationUuids: string[]

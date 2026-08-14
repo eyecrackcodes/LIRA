@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getViewer, isManager } from "@/lib/auth";
+import { getViewer, canViewAgentFilm } from "@/lib/auth";
 import { getActiveAgents, getFilmMeta } from "@/lib/queries";
 import { buildFilmDays } from "@/lib/film";
 import { agentSlug, fmtWeek } from "@/lib/format";
@@ -11,12 +11,11 @@ export const dynamic = "force-dynamic"; // viewer-scoped access
 
 export default async function FilmRoomPage() {
   const viewer = await getViewer();
-  if (!isManager(viewer)) {
-    // Agents go straight to their own library — the roster-wide index stays
-    // manager-only (it reveals every agent's hot/cold day pattern).
-    if (viewer?.role === "agent" && viewer.agent) redirect(`/film/${agentSlug(viewer.agent)}`);
-    redirect("/");
-  }
+  // The roster-wide index is open to the whole team: agents need it to reach
+  // each other's libraries at all, so gating it would have made "everyone can
+  // see everyone's calls" reachable only by guessing URLs. It does expose every
+  // agent's hot/cold day pattern to their peers — accepted along with it.
+  if (!canViewAgentFilm(viewer)) redirect("/");
 
   const [agents, meta] = await Promise.all([getActiveAgents(), getFilmMeta()]);
 
@@ -55,8 +54,9 @@ export default async function FilmRoomPage() {
             label="🔥 hot / 🧊 cold"
             tip="Flagged by the nightly capture against the agent's OWN baseline: hot = an outlier good day (big sales/premium, or converting with above-median call length); cold = zero conversions with an off-median call-length profile. Every serious athlete watches film — best day next to slump day."
           />
-          . Agents see (and hear) only their own film — transcripts and recordings carry
-          client names and health/bank details.
+          . Open to the whole team — every teammate can watch every agent&apos;s film.
+          Transcripts and recordings carry real client names and health/bank details, so treat
+          them as customer records: study them, don&apos;t share them outside this room.
         </p>
       </header>
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getViewer, canViewAgentFilm, isManager } from "@/lib/auth";
+import { getViewer, canViewAgentFilm } from "@/lib/auth";
 import { getActiveAgents, getFilmMeta } from "@/lib/queries";
 import { bestCallOf, buildFilmDays, fmtDuration, pickBestHotCall, pickLatestColdCall } from "@/lib/film";
 import { agentSlug, fmtInt, fmtMoney, fmtScore, fmtTimePT, fmtWeek } from "@/lib/format";
@@ -21,8 +21,8 @@ export default async function AgentFilmLibraryPage({
   const agentRow = agents.find((a) => agentSlug(a.agent) === slug);
   if (!agentRow) notFound();
   const agent = agentRow.agent;
-  // Client PII — manager, or the agent's own library only.
-  if (!canViewAgentFilm(viewer, agent)) redirect("/");
+  // Open to the whole roster; still closed to anyone without an account.
+  if (!canViewAgentFilm(viewer)) redirect("/");
 
   const rows = await getFilmMeta({ agent });
   const days = buildFilmDays(rows);
@@ -31,11 +31,9 @@ export default async function AgentFilmLibraryPage({
 
   return (
     <div className="space-y-6">
-      {isManager(viewer) && (
-        <Link href="/film" className="text-xs uppercase tracking-wider text-mute hover:text-gold">
-          ← Film Room
-        </Link>
-      )}
+      <Link href="/film" className="text-xs uppercase tracking-wider text-mute hover:text-gold">
+        ← Film Room
+      </Link>
 
       <Panel className="!p-6">
         <div className="flex flex-wrap items-center gap-4">

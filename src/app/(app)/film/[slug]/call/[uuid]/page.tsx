@@ -23,7 +23,7 @@ export default async function CallReaderPage({
   const row = await getCallTranscript(uuid);
   if (!row || agentSlug(row.agent) !== slug) notFound();
   // Client PII in transcript/recording — manager, or the agent's own call only.
-  if (!canViewAgentFilm(await getViewer(), row.agent)) redirect("/");
+  if (!canViewAgentFilm(await getViewer())) redirect("/");
 
   const turns = parseTranscript(row.transcript, row.agent);
   const isHot = row.trigger === "hot";

@@ -39,7 +39,7 @@ export default async function SessionViewPage({
   if (!agentRow) notFound();
   const agent = agentRow.agent;
   // Client PII — manager, or the agent's own session only.
-  if (!canViewAgentFilm(await getViewer(), agent)) redirect("/");
+  if (!canViewAgentFilm(await getViewer())) redirect("/");
 
   const rows = await getFilmMeta({ agent });
   const days = buildFilmDays(rows);
