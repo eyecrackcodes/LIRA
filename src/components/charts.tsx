@@ -353,7 +353,14 @@ export interface TrendSeriesDef {
 }
 
 /** Named formats only — functions can't cross the server/client boundary. */
-export type TrendFormat = "money0" | "moneyCents" | "pct1" | "hrs1" | "grade" | "num1";
+export type TrendFormat =
+  | "money0"
+  | "moneyCents"
+  | "pct1"
+  | "hrs1"
+  | "grade"
+  | "num1"
+  | "ratiox";
 
 const TREND_FORMATTERS: Record<TrendFormat, (v: number) => string> = {
   money0: (v) => `$${Math.round(v).toLocaleString("en-US")}`,
@@ -362,6 +369,8 @@ const TREND_FORMATTERS: Record<TrendFormat, (v: number) => string> = {
   hrs1: (v) => `${v.toFixed(1)} hrs`,
   grade: (v) => v.toFixed(2),
   num1: (v) => v.toFixed(1),
+  /** A return multiple — "3.29×". Never render a ROAS-style ratio as a percent. */
+  ratiox: (v) => `${v.toFixed(2)}×`,
 };
 
 /**
@@ -375,18 +384,28 @@ export function TrendChart({
   series,
   format = "num1",
   height = 220,
+  xKey = "week",
+  connectNulls = true,
 }: {
   data: Record<string, string | number | null>[];
   series: TrendSeriesDef[];
   format?: TrendFormat;
   height?: number;
+  /** X-axis field. Defaults to "week" for the weekly Trends callers. */
+  xKey?: string;
+  /**
+   * Bridge a null by drawing straight through it. TRUE for weekly series where
+   * a missing week is noise; pass FALSE when a null means "not reported" and
+   * interpolating would invent a number the source never published.
+   */
+  connectNulls?: boolean;
 }) {
   const fmt = TREND_FORMATTERS[format];
   return (
     <ResponsiveContainer width="100%" height={height}>
       <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
         <CartesianGrid stroke={C.edge} vertical={false} />
-        <XAxis dataKey="week" tick={axis} tickLine={false} axisLine={{ stroke: C.edge }} />
+        <XAxis dataKey={xKey} tick={axis} tickLine={false} axisLine={{ stroke: C.edge }} />
         <YAxis
           tick={axis}
           tickLine={false}
@@ -408,7 +427,7 @@ export function TrendChart({
             strokeWidth={s.dashed ? 1.5 : 2.5}
             strokeDasharray={s.dashed ? "5 4" : undefined}
             dot={s.dashed ? false : { r: 3, fill: s.color }}
-            connectNulls
+            connectNulls={connectNulls}
           />
         ))}
       </ComposedChart>
