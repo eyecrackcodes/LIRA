@@ -350,6 +350,11 @@ export interface TrendSeriesDef {
   name: string;
   color: string;
   dashed?: boolean;
+  /** Stroke weight override — e.g. a thin context series beneath an emphasis line. */
+  strokeWidth?: number;
+  /** Force dots on/off. Defaults on for solid series, off for dashed. Turn them
+   *  off past ~45 points, where a dot per day becomes noise rather than data. */
+  dots?: boolean;
 }
 
 /** Named formats only — functions can't cross the server/client boundary. */
@@ -424,9 +429,9 @@ export function TrendChart({
             dataKey={s.key}
             name={s.name}
             stroke={s.color}
-            strokeWidth={s.dashed ? 1.5 : 2.5}
+            strokeWidth={s.strokeWidth ?? (s.dashed ? 1.5 : 2.5)}
             strokeDasharray={s.dashed ? "5 4" : undefined}
-            dot={s.dashed ? false : { r: 3, fill: s.color }}
+            dot={(s.dots ?? !s.dashed) ? { r: 3, fill: s.color } : false}
             connectNulls={connectNulls}
           />
         ))}
